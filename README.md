@@ -49,7 +49,7 @@ This builds both containers and starts the app. First build takes ~2–3 minutes
 
 ### 4. Open the app
 
-Navigate to: **http://localhost:3000**
+Navigate to: **http://localhost:7200**
 
 On first visit, you'll be prompted to create your admin account (one-time setup).
 
@@ -67,10 +67,10 @@ Your data persists in `./data/debtwise.db`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_PORT` | `3000` | Port to access the app |
+| `APP_PORT` | `7200` | Port to access the app |
 | `JWT_SECRET` | *(change this!)* | Secret for signing JWT tokens |
 | `JWT_EXPIRES_IN` | `24h` | Session duration (e.g. `24h`, `7d`, `30d`) |
-| `FRONTEND_URL` | `http://localhost:3000` | Frontend URL (CORS) |
+| `FRONTEND_URL` | `http://localhost:7200` | Frontend URL (CORS) |
 | `DATA_PATH` | `./data` | Host path for SQLite database |
 | `LOG_LEVEL` | `info` | Log level (`info`, `debug`, `warn`, `error`) |
 
@@ -216,7 +216,7 @@ curl http://localhost:3001/api/health
 ## Security Recommendations for Self-Hosting
 
 1. **Change JWT_SECRET** before first run — use `openssl rand -base64 64`
-2. **Do not expose port 3000 to the internet** — bind to `127.0.0.1` only if needed
+2. **Do not expose port 7200 to the internet** — bind to `127.0.0.1` only if needed
 3. **Keep regular backups** — use the built-in backup feature weekly
 4. **Use full-disk encryption** on your laptop to protect the SQLite database at rest
 5. **Keep Docker and your OS updated**
@@ -227,8 +227,8 @@ curl http://localhost:3001/api/health
 
 **Port already in use:**
 ```bash
-# Change APP_PORT in .env to another port (e.g. 3001)
-APP_PORT=3001
+# Change APP_PORT in .env to another free port
+APP_PORT=7201
 docker compose up -d
 ```
 

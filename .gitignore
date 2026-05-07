@@ -1,0 +1,33 @@
+# Environment
+.env
+*.env.local
+
+# Data (contains your SQLite database — never commit this)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Node
+node_modules/
+*/node_modules/
+
+# Build
+*/build/
+*/dist/
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

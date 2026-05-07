@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: debtwise-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_PATH=/data/debtwise.db
+      - LOG_PATH=/data/logs
+      - BACKUP_PATH=/data/backups
+    volumes:
+      - debtwise_data:/data
+    networks:
+      - debtwise_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: debtwise-frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - debtwise_net
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  debtwise_data:
+    driver: local
+
+networks:
+  debtwise_net:
+    driver: bridge
