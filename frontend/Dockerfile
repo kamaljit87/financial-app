@@ -1,26 +1,18 @@
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
-
 COPY . .
-ENV VITE_API_URL=/api
+
+ARG VITE_BASE_PATH=/financial-app
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+
 RUN npm run build
 
-# Production stage
-FROM nginx:1.25-alpine AS production
+EXPOSE 4173
 
-COPY --from=builder /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:4173${VITE_BASE_PATH}/ || exit 1
 
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
-
-EXPOSE 80
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/health || exit 1
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["npm", "run", "preview"]

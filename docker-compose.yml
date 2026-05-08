@@ -31,10 +31,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_BASE_PATH=${VITE_BASE_PATH:-/financial-app}
     container_name: debtwise-frontend
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:80"
+      - "${APP_PORT:-7200}:4173"
     depends_on:
       backend:
         condition: service_healthy

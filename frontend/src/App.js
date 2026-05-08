@@ -51,7 +51,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/financial-app'}>
         <AppRoutes />
         <Toaster
           position="top-right"

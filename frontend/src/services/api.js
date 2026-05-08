@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || `${import.meta.env.VITE_BASE_PATH || '/financial-app'}/api`,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
@@ -25,7 +25,7 @@ api.interceptors.response.use(
     const { response } = error;
     if (response?.status === 401 && response?.data?.code === 'TOKEN_EXPIRED') {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      window.location.href = `${import.meta.env.VITE_BASE_PATH || '/financial-app'}/login`;
       return Promise.reject(error);
     }
     if (response?.status === 429) {
