@@ -23,6 +23,9 @@ const backupRoutes = require('./routes/backup');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust the immediate proxy (NPM on host network)
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: {

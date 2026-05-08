@@ -36,7 +36,7 @@ services:
     container_name: debtwise-frontend
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-7200}:4173"
+      - "127.0.0.1:${APP_PORT:-7200}:4173"
     depends_on:
       backend:
         condition: service_healthy
