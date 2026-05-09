@@ -169,7 +169,6 @@ function createTables() {
     );
 
     -- Indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_cards_group ON credit_cards(user_id, shared_limit_group);
     CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_transactions_card ON transactions(card_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
@@ -186,6 +185,7 @@ function runMigrations() {
     db.exec(`ALTER TABLE credit_cards ADD COLUMN shared_limit_group TEXT`);
     logger.info('Migration: added shared_limit_group to credit_cards');
   }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_cards_group ON credit_cards(user_id, shared_limit_group)`);
 }
 
 module.exports = { initDatabase, getDb };
