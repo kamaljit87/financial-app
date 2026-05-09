@@ -6,10 +6,11 @@ import toast from 'react-hot-toast';
 
 const CARD_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6'];
 
-const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true };
+const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true, shared_limit_group: '' };
 
-function CardModal({ card, onClose, onSave }) {
-  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1 } : EMPTY_FORM);
+function CardModal({ card, onClose, onSave, existingCards = [] }) {
+  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '' } : EMPTY_FORM);
+  const existingGroups = [...new Set(existingCards.filter(c => c.shared_limit_group && c.id !== card?.id).map(c => c.shared_limit_group))];
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -122,6 +123,17 @@ function CardModal({ card, onClose, onSave }) {
             <label className="label">Notes</label>
             <textarea className="input resize-none h-16" placeholder="Optional notes..." value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
+          <div>
+            <label className="label">Shared Limit Group <span className="text-surface-400 font-normal">(optional)</span></label>
+            <input className="input" placeholder={`e.g. ${form.bank_name || 'HDFC'} Pool`}
+              list="group-suggestions"
+              value={form.shared_limit_group}
+              onChange={e => set('shared_limit_group', e.target.value)} />
+            <datalist id="group-suggestions">
+              {existingGroups.map(g => <option key={g} value={g} />)}
+            </datalist>
+            <p className="text-xs text-surface-400 mt-1">Cards in the same group share a combined credit limit. Leave blank for individual limit.</p>
+          </div>
           {card && (
             <div className="flex items-center gap-2">
               <input type="checkbox" id="is_active" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="w-4 h-4" />
@@ -208,6 +220,8 @@ export default function Cards() {
             const utilColor = util > 70 ? 'bg-red-500' : util > 50 ? 'bg-amber-500' : 'bg-emerald-500';
             const utilText = util > 70 ? 'text-red-600' : util > 50 ? 'text-amber-600' : 'text-emerald-600';
 
+            const grp = card.group_summary;
+
             return (
               <div key={card.id} className="card-hover overflow-hidden">
                 {/* Card visual header */}
@@ -217,7 +231,10 @@ export default function Cards() {
                       <p className="text-xs text-surface-500 mb-0.5">{card.bank_name}</p>
                       <p className="font-semibold text-surface-800">{card.nickname}</p>
                     </div>
-                    <span className="badge-purple text-xs capitalize">{card.card_type}</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="badge-purple text-xs capitalize">{card.card_type}</span>
+                      {card.shared_limit_group && <span className="badge-blue text-xs">Shared Pool</span>}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="font-mono text-surface-600 text-sm tracking-widest">
@@ -236,7 +253,7 @@ export default function Cards() {
                     <span className="font-semibold text-surface-900">{formatCurrency(card.current_balance, sym)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-surface-500">Limit</span>
+                    <span className="text-surface-500">{grp ? 'Card Limit' : 'Limit'}</span>
                     <span className="text-surface-600">{formatCurrency(card.credit_limit, sym)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -244,15 +261,33 @@ export default function Cards() {
                     <span className="text-emerald-600">{formatCurrency(card.available_credit, sym)}</span>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-surface-400">Utilization</span>
-                      <span className={utilText}>{util}%</span>
+                  {/* Group shared limit banner */}
+                  {grp && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 space-y-1.5">
+                      <p className="text-xs font-medium text-blue-700">"{card.shared_limit_group}" — Shared Pool ({grp.card_count} cards)</p>
+                      <div className="flex justify-between text-xs text-blue-600">
+                        <span>Pool used: {formatCurrency(grp.total_balance, sym)}</span>
+                        <span>Pool limit: {formatCurrency(grp.shared_limit, sym)}</span>
+                      </div>
+                      <div className="bg-blue-200 rounded-full h-1.5">
+                        <div className={`h-1.5 rounded-full transition-all ${utilColor}`}
+                          style={{ width: `${Math.min(100, util)}%` }} />
+                      </div>
+                      <p className="text-xs text-blue-500 text-right">{util}% of shared pool used</p>
                     </div>
-                    <div className="bg-surface-200 rounded-full h-2">
-                      <div className={`h-2 rounded-full transition-all ${utilColor}`} style={{ width: `${Math.min(100, util)}%` }} />
+                  )}
+
+                  {!grp && (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-surface-400">Utilization</span>
+                        <span className={utilText}>{util}%</span>
+                      </div>
+                      <div className="bg-surface-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full transition-all ${utilColor}`} style={{ width: `${Math.min(100, util)}%` }} />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {(card.due_date || card.interest_rate) && (
                     <div className="flex gap-3 text-xs text-surface-400 pt-1 border-t border-surface-100">
@@ -281,7 +316,7 @@ export default function Cards() {
         </div>
       )}
 
-      {showModal && <CardModal card={editCard} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchCards(); }} />}
+      {showModal && <CardModal card={editCard} existingCards={cards} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchCards(); }} />}
     </div>
   );
 }

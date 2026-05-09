@@ -59,12 +59,34 @@ router.get('/', (req, res) => {
 
   // Per-card balances
   const cardBalances = db.prepare(`
-    SELECT id, nickname, bank_name, last_four, current_balance, credit_limit, due_date, color,
+    SELECT id, nickname, bank_name, last_four, current_balance, credit_limit, due_date, color, shared_limit_group,
       CASE WHEN credit_limit > 0 THEN ROUND((current_balance * 100.0 / credit_limit), 1) ELSE 0 END as utilization
     FROM credit_cards
     WHERE user_id = ? AND is_active = 1
     ORDER BY current_balance DESC
   `).all(userId);
+
+  // Build group summaries for shared-limit cards
+  const groupMap = {};
+  for (const card of cardBalances) {
+    if (!card.shared_limit_group) continue;
+    const g = card.shared_limit_group;
+    if (!groupMap[g]) groupMap[g] = { total_balance: 0, shared_limit: 0, card_count: 0 };
+    groupMap[g].total_balance += card.current_balance;
+    groupMap[g].shared_limit += card.credit_limit;
+    groupMap[g].card_count += 1;
+  }
+
+  const enrichedCardBalances = cardBalances.map(card => {
+    const group = card.shared_limit_group ? groupMap[card.shared_limit_group] : null;
+    return {
+      ...card,
+      utilization: group
+        ? (group.shared_limit > 0 ? Math.min(100, (group.total_balance / group.shared_limit) * 100).toFixed(1) : 0)
+        : card.utilization,
+      group_summary: group || null,
+    };
+  });
 
   // Upcoming due dates (within next 7 days)
   const today = now.getDate();
@@ -150,7 +172,7 @@ router.get('/', (req, res) => {
       income_trend: income > lastMonthIncome.total ? 'up' : income < lastMonthIncome.total ? 'down' : 'stable',
       expense_trend: expenses > lastMonthExpenses.total ? 'up' : expenses < lastMonthExpenses.total ? 'down' : 'stable',
     },
-    card_balances: cardBalances,
+    card_balances: enrichedCardBalances,
     upcoming_dues: upcomingDues,
     category_breakdown: categoryBreakdown,
     monthly_trend: monthlyTrend,
