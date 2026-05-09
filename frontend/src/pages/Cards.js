@@ -43,7 +43,11 @@ function CardModal({ card, onClose, onSave }) {
       toast.success(card ? 'Card updated' : 'Card added');
       onSave();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save card');
+      const data = err.response?.data;
+      const msg = data?.details?.length
+        ? data.details.map(d => `${d.field}: ${d.message}`).join(', ')
+        : data?.error || 'Failed to save card';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

@@ -9,16 +9,16 @@ const router = express.Router();
 router.use(authenticate);
 
 const cardValidators = [
-  body('nickname').trim().isLength({ min: 1, max: 50 }).escape(),
-  body('bank_name').trim().isLength({ min: 1, max: 50 }).escape(),
-  body('last_four').trim().matches(/^\d{4}$/),
-  body('credit_limit').isFloat({ min: 0 }),
-  body('billing_date').optional().isInt({ min: 1, max: 31 }),
-  body('due_date').optional().isInt({ min: 1, max: 31 }),
-  body('interest_rate').optional().isFloat({ min: 0, max: 100 }),
-  body('notes').optional().trim().isLength({ max: 500 }).escape(),
-  body('color').optional().matches(/^#[0-9A-Fa-f]{6}$/),
-  body('card_type').optional().isIn(['credit', 'debit', 'prepaid']),
+  body('nickname').trim().isLength({ min: 1, max: 50 }).withMessage('Nickname is required (max 50 chars)'),
+  body('bank_name').trim().isLength({ min: 1, max: 50 }).withMessage('Bank name is required (max 50 chars)'),
+  body('last_four').trim().matches(/^\d{4}$/).withMessage('Last four digits must be exactly 4 numbers'),
+  body('credit_limit').isFloat({ min: 0 }).withMessage('Credit limit must be a positive number'),
+  body('billing_date').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 31 }).withMessage('Billing date must be 1-31'),
+  body('due_date').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 31 }).withMessage('Due date must be 1-31'),
+  body('interest_rate').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0, max: 100 }).withMessage('Interest rate must be 0-100'),
+  body('notes').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Notes max 500 chars'),
+  body('color').optional({ nullable: true, checkFalsy: true }).matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Invalid color format'),
+  body('card_type').optional({ nullable: true, checkFalsy: true }).isIn(['credit', 'debit', 'prepaid']).withMessage('Invalid card type'),
 ];
 
 // GET all cards
