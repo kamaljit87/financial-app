@@ -25,7 +25,8 @@ function PublicRoute({ children }) {
   const { user, loading, setupRequired } = useAuth();
   if (loading) return <LoadingScreen />;
   if (user) return <Navigate to="/" replace />;
-  if (setupRequired && window.location.pathname !== '/register') return <Navigate to="/register" replace />;
+  const basePath = import.meta.env.VITE_BASE_PATH || '/financial-app';
+  if (setupRequired && window.location.pathname !== `${basePath}/register`) return <Navigate to="/register" replace />;
   return children;
 }
 
