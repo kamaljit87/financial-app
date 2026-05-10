@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, Edit2, Trash2, X, Eye, EyeOff } from 'lucide-react';
+import { Plus, CreditCard, Edit2, Trash2, X, Eye, EyeOff, Banknote } from 'lucide-react';
 import api, { formatCurrency } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -152,12 +152,94 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
   );
 }
 
+function PayModal({ card, onClose, onSave, sym }) {
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reference, setReference] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) return toast.error('Enter a valid amount');
+    setLoading(true);
+    try {
+      await api.post('/transactions', {
+        title: `Payment — ${card.nickname}`,
+        amount: parseFloat(amount),
+        transaction_type: 'payment',
+        category: 'payment',
+        date,
+        card_id: card.id,
+        reference_number: reference || null,
+        notes: '',
+        tags: [],
+        is_recurring: 0,
+      });
+      toast.success(`Payment of ${sym}${parseFloat(amount).toLocaleString('en-IN')} recorded`);
+      onSave();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to record payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-900/50 backdrop-blur-sm">
+      <div className="bg-white border border-surface-200 rounded-2xl w-full max-w-sm shadow-card-lg">
+        <div className="flex items-center justify-between p-5 border-b border-surface-200">
+          <div>
+            <h2 className="font-semibold text-surface-800">Pay Card</h2>
+            <p className="text-xs text-surface-400 mt-0.5">{card.nickname} · ****{card.last_four}</p>
+          </div>
+          <button onClick={onClose} className="text-surface-400 hover:text-surface-600 p-1"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="bg-surface-50 rounded-xl p-3 flex justify-between text-sm">
+            <span className="text-surface-500">Outstanding balance</span>
+            <span className="font-semibold text-red-600">{sym}{Number(card.current_balance).toLocaleString('en-IN')}</span>
+          </div>
+          <div>
+            <label className="label">Payment Amount ({sym}) *</label>
+            <input className="input text-lg font-semibold" type="number" min="0.01" step="0.01"
+              placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus required />
+            <div className="flex gap-2 mt-2">
+              {[card.current_balance, card.current_balance / 2].filter(v => v > 0).map((v, i) => (
+                <button key={i} type="button"
+                  className="text-xs px-2.5 py-1 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors"
+                  onClick={() => setAmount(v.toFixed(2))}>
+                  {i === 0 ? 'Full' : 'Half'} — {sym}{Math.round(v).toLocaleString('en-IN')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="label">Payment Date *</label>
+            <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+          </div>
+          <div>
+            <label className="label">Reference Number <span className="text-surface-400 font-normal">(optional)</span></label>
+            <input className="input" placeholder="UTR / Transaction ID" value={reference} onChange={e => setReference(e.target.value)} />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" className="btn-primary flex-1" disabled={loading}>
+              {loading ? 'Recording...' : 'Record Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Cards() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editCard, setEditCard] = useState(null);
   const [maskedCards, setMaskedCards] = useState(new Set());
+  const [payCard, setPayCard] = useState(null);
   const { settings } = useAuth();
   const sym = settings?.currency_symbol || '₹';
 
@@ -300,6 +382,10 @@ export default function Cards() {
                   {!card.is_active && <div className="badge-yellow text-xs">Inactive</div>}
 
                   <div className="flex gap-2 pt-1">
+                    <button onClick={() => setPayCard(card)}
+                      className="btn-primary flex-1 flex items-center justify-center gap-1 text-xs py-1.5">
+                      <Banknote className="w-3.5 h-3.5" /> Pay
+                    </button>
                     <button onClick={() => { setEditCard(card); setShowModal(true); }}
                       className="btn-secondary flex-1 flex items-center justify-center gap-1 text-xs py-1.5">
                       <Edit2 className="w-3.5 h-3.5" /> Edit
@@ -317,6 +403,7 @@ export default function Cards() {
       )}
 
       {showModal && <CardModal card={editCard} existingCards={cards} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchCards(); }} />}
+      {payCard && <PayModal card={payCard} sym={sym} onClose={() => setPayCard(null)} onSave={() => { setPayCard(null); fetchCards(); }} />}
     </div>
   );
 }
