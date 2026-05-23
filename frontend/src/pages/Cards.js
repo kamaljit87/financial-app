@@ -132,26 +132,27 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
             <label className="label">Notes</label>
             <textarea className="input resize-none h-16" placeholder="Optional notes..." value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
-          <div>
-            <label className="label">Shared Limit Group <span className="text-surface-400 font-normal">(optional)</span></label>
-            <input className="input" placeholder={`e.g. ${form.bank_name || 'HDFC'} Pool`}
-              list="group-suggestions"
-              value={form.shared_limit_group}
-              onChange={e => set('shared_limit_group', e.target.value)} />
-            <datalist id="group-suggestions">
-              {existingGroups.map(g => <option key={g} value={g} />)}
-            </datalist>
-            <p className="text-xs text-surface-400 mt-1">Cards in the same group share a combined credit limit. Leave blank for individual limit.</p>
-          </div>
-          {form.shared_limit_group && (
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Pool Limit (₹) <span className="text-surface-400 font-normal">(optional — overrides card limits)</span></label>
+              <label className="label">Shared Limit Group <span className="text-surface-400 font-normal">(optional)</span></label>
+              <input className="input" placeholder={`e.g. ${form.bank_name || 'HDFC'} Pool`}
+                list="group-suggestions"
+                value={form.shared_limit_group}
+                onChange={e => set('shared_limit_group', e.target.value)} />
+              <datalist id="group-suggestions">
+                {existingGroups.map(g => <option key={g} value={g} />)}
+              </datalist>
+              <p className="text-xs text-surface-400 mt-1">Cards in the same group share a combined limit.</p>
+            </div>
+            <div>
+              <label className="label">Pool Limit (₹) <span className="text-surface-400 font-normal">(optional)</span></label>
               <input className="input" type="number" min="0" placeholder="e.g. 290000"
                 value={form.shared_limit_pool}
+                disabled={!form.shared_limit_group}
                 onChange={e => set('shared_limit_pool', e.target.value)} />
-              <p className="text-xs text-surface-400 mt-1">Set this on any one card in the group. Leave blank to use the highest card limit.</p>
+              <p className="text-xs text-surface-400 mt-1">Overrides card limits. Set on one card only.</p>
             </div>
-          )}
+          </div>
           {card && (
             <div className="flex items-center gap-2">
               <input type="checkbox" id="is_active" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="w-4 h-4" />
