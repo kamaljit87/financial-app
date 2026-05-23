@@ -25,7 +25,7 @@ export default function Reports() {
   const handleExport = (type) => {
     const params = new URLSearchParams(Object.fromEntries(Object.entries(exportFilters).filter(([, v]) => v)));
     const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const baseUrl = import.meta.env.VITE_API_URL || `${import.meta.env.VITE_BASE_PATH || '/financial-app'}/api`;
     if (type === 'transactions_csv') window.open(`${baseUrl}/export/transactions/csv?${params}&token=${token}`, '_blank');
     else if (type === 'income_csv') window.open(`${baseUrl}/export/income/csv?${params}&token=${token}`, '_blank');
     else if (type === 'xlsx') window.open(`${baseUrl}/export/report/xlsx?month=${month}&token=${token}`, '_blank');
@@ -50,7 +50,7 @@ export default function Reports() {
 
   const handleDownloadBackup = (filename) => {
     const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const baseUrl = import.meta.env.VITE_API_URL || `${import.meta.env.VITE_BASE_PATH || '/financial-app'}/api`;
     window.open(`${baseUrl}/backup/download/${filename}?token=${token}`, '_blank');
   };
 

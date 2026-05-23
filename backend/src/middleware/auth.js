@@ -3,9 +3,9 @@ const { getDb } = require('../models/database');
 
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.startsWith('Bearer ')
+  const token = (authHeader && authHeader.startsWith('Bearer ')
     ? authHeader.slice(7)
-    : req.cookies?.token;
+    : null) || req.query?.token || req.cookies?.token;
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
