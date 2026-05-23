@@ -20,6 +20,7 @@ const cardValidators = [
   body('color').optional({ nullable: true, checkFalsy: true }).matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Invalid color format'),
   body('card_type').optional({ nullable: true, checkFalsy: true }).isIn(['credit', 'debit', 'prepaid']).withMessage('Invalid card type'),
   body('shared_limit_group').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('Group name max 100 chars'),
+  body('shared_limit_pool').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Pool limit must be a positive number'),
   body('current_balance').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Balance must be a positive number'),
 ];
 
@@ -39,15 +40,20 @@ router.get('/', (req, res) => {
   `).all(req.user.id);
 
   // Build group summaries: total balance and shared limit per group
-  // shared_limit is the MAX credit_limit across cards (all cards share one pool, not additive)
+  // Use shared_limit_pool if set, otherwise fall back to max card credit_limit
   const groupMap = {};
   for (const card of cards) {
     if (!card.shared_limit_group) continue;
     const g = card.shared_limit_group;
-    if (!groupMap[g]) groupMap[g] = { total_balance: 0, shared_limit: 0, card_count: 0 };
+    if (!groupMap[g]) groupMap[g] = { total_balance: 0, shared_limit: 0, pool_limit: null, card_count: 0 };
     groupMap[g].total_balance += card.current_balance;
     groupMap[g].shared_limit = Math.max(groupMap[g].shared_limit, card.credit_limit);
+    if (card.shared_limit_pool) groupMap[g].pool_limit = card.shared_limit_pool;
     groupMap[g].card_count += 1;
+  }
+  // Resolve final limit: manual pool > max card limit
+  for (const g of Object.values(groupMap)) {
+    g.shared_limit = g.pool_limit ?? g.shared_limit;
   }
 
   const enriched = cards.map(card => {
@@ -86,13 +92,13 @@ router.get('/:id', (req, res) => {
 // CREATE card
 router.post('/', cardValidators, validate, (req, res) => {
   const db = getDb();
-  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group } = req.body;
+  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group, shared_limit_pool } = req.body;
   const id = uuidv4();
 
   db.prepare(`
-    INSERT INTO credit_cards (id, user_id, nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, req.user.id, nickname, bank_name, last_four, credit_limit, current_balance ?? 0, billing_date || null, due_date || null, interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit', shared_limit_group || null);
+    INSERT INTO credit_cards (id, user_id, nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group, shared_limit_pool)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, nickname, bank_name, last_four, credit_limit, current_balance ?? 0, billing_date || null, due_date || null, interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit', shared_limit_group || null, shared_limit_pool || null);
 
   const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(id);
   res.status(201).json({ card });
@@ -105,19 +111,19 @@ router.put('/:id', cardValidators, validate, (req, res) => {
     .get(req.params.id, req.user.id);
   if (!card) return res.status(404).json({ error: 'Card not found' });
 
-  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, is_active, shared_limit_group } = req.body;
+  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, is_active, shared_limit_group, shared_limit_pool } = req.body;
 
   db.prepare(`
     UPDATE credit_cards SET
       nickname = ?, bank_name = ?, last_four = ?, credit_limit = ?, current_balance = ?,
       billing_date = ?, due_date = ?, interest_rate = ?, notes = ?,
-      color = ?, card_type = ?, is_active = ?, shared_limit_group = ?,
+      color = ?, card_type = ?, is_active = ?, shared_limit_group = ?, shared_limit_pool = ?,
       updated_at = datetime('now')
     WHERE id = ? AND user_id = ?
   `).run(nickname, bank_name, last_four, credit_limit, current_balance ?? 0,
     billing_date || null, due_date || null,
     interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit',
-    is_active !== undefined ? is_active : 1, shared_limit_group || null,
+    is_active !== undefined ? is_active : 1, shared_limit_group || null, shared_limit_pool || null,
     req.params.id, req.user.id);
 
   const updated = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(req.params.id);

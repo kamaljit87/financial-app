@@ -185,6 +185,10 @@ function runMigrations() {
     db.exec(`ALTER TABLE credit_cards ADD COLUMN shared_limit_group TEXT`);
     logger.info('Migration: added shared_limit_group to credit_cards');
   }
+  if (!cols.includes('shared_limit_pool')) {
+    db.exec(`ALTER TABLE credit_cards ADD COLUMN shared_limit_pool REAL`);
+    logger.info('Migration: added shared_limit_pool to credit_cards');
+  }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_cards_group ON credit_cards(user_id, shared_limit_group)`);
 }
 

@@ -6,10 +6,10 @@ import toast from 'react-hot-toast';
 
 const CARD_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6'];
 
-const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', current_balance: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true, shared_limit_group: '' };
+const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', current_balance: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true, shared_limit_group: '', shared_limit_pool: '' };
 
 function CardModal({ card, onClose, onSave, existingCards = [] }) {
-  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '', current_balance: card.current_balance ?? '' } : EMPTY_FORM);
+  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '', shared_limit_pool: card.shared_limit_pool ?? '', current_balance: card.current_balance ?? '' } : EMPTY_FORM);
   const existingGroups = [...new Set(existingCards.filter(c => c.shared_limit_group && c.id !== card?.id).map(c => c.shared_limit_group))];
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -35,6 +35,7 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
         ...form,
         credit_limit: parseFloat(form.credit_limit),
         current_balance: form.current_balance !== '' ? parseFloat(form.current_balance) : 0,
+        shared_limit_pool: form.shared_limit_pool !== '' ? parseFloat(form.shared_limit_pool) : null,
         billing_date: form.billing_date ? parseInt(form.billing_date) : null,
         due_date: form.due_date ? parseInt(form.due_date) : null,
         interest_rate: form.interest_rate ? parseFloat(form.interest_rate) : null,
@@ -142,6 +143,15 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
             </datalist>
             <p className="text-xs text-surface-400 mt-1">Cards in the same group share a combined credit limit. Leave blank for individual limit.</p>
           </div>
+          {form.shared_limit_group && (
+            <div>
+              <label className="label">Pool Limit (₹) <span className="text-surface-400 font-normal">(optional — overrides card limits)</span></label>
+              <input className="input" type="number" min="0" placeholder="e.g. 290000"
+                value={form.shared_limit_pool}
+                onChange={e => set('shared_limit_pool', e.target.value)} />
+              <p className="text-xs text-surface-400 mt-1">Set this on any one card in the group. Leave blank to use the highest card limit.</p>
+            </div>
+          )}
           {card && (
             <div className="flex items-center gap-2">
               <input type="checkbox" id="is_active" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="w-4 h-4" />

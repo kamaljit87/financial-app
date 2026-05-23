@@ -67,15 +67,19 @@ router.get('/', (req, res) => {
   `).all(userId);
 
   // Build group summaries for shared-limit cards
-  // shared_limit is MAX credit_limit across cards (one shared pool, not additive)
+  // Use shared_limit_pool if manually set, otherwise fall back to max card credit_limit
   const groupMap = {};
   for (const card of cardBalances) {
     if (!card.shared_limit_group) continue;
     const g = card.shared_limit_group;
-    if (!groupMap[g]) groupMap[g] = { total_balance: 0, shared_limit: 0, card_count: 0 };
+    if (!groupMap[g]) groupMap[g] = { total_balance: 0, shared_limit: 0, pool_limit: null, card_count: 0 };
     groupMap[g].total_balance += card.current_balance;
     groupMap[g].shared_limit = Math.max(groupMap[g].shared_limit, card.credit_limit);
+    if (card.shared_limit_pool) groupMap[g].pool_limit = card.shared_limit_pool;
     groupMap[g].card_count += 1;
+  }
+  for (const g of Object.values(groupMap)) {
+    g.shared_limit = g.pool_limit ?? g.shared_limit;
   }
 
   const enrichedCardBalances = cardBalances.map(card => {
