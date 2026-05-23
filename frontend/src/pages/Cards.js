@@ -6,10 +6,10 @@ import toast from 'react-hot-toast';
 
 const CARD_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6'];
 
-const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true, shared_limit_group: '' };
+const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '', current_balance: '', billing_date: '', due_date: '', interest_rate: '', notes: '', color: '#6366f1', card_type: 'credit', is_active: true, shared_limit_group: '' };
 
 function CardModal({ card, onClose, onSave, existingCards = [] }) {
-  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '' } : EMPTY_FORM);
+  const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '', current_balance: card.current_balance ?? '' } : EMPTY_FORM);
   const existingGroups = [...new Set(existingCards.filter(c => c.shared_limit_group && c.id !== card?.id).map(c => c.shared_limit_group))];
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -34,6 +34,7 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
       const payload = {
         ...form,
         credit_limit: parseFloat(form.credit_limit),
+        current_balance: form.current_balance !== '' ? parseFloat(form.current_balance) : 0,
         billing_date: form.billing_date ? parseInt(form.billing_date) : null,
         due_date: form.due_date ? parseInt(form.due_date) : null,
         interest_rate: form.interest_rate ? parseFloat(form.interest_rate) : null,
@@ -90,10 +91,17 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="label">Credit Limit (₹) *</label>
-            <input className="input" type="number" min="0" placeholder="100000" value={form.credit_limit} onChange={e => set('credit_limit', e.target.value)} />
-            {errors.credit_limit && <p className="text-red-500 text-xs mt-1">{errors.credit_limit}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Credit Limit (₹) *</label>
+              <input className="input" type="number" min="0" placeholder="100000" value={form.credit_limit} onChange={e => set('credit_limit', e.target.value)} />
+              {errors.credit_limit && <p className="text-red-500 text-xs mt-1">{errors.credit_limit}</p>}
+            </div>
+            <div>
+              <label className="label">Current Balance (₹)</label>
+              <input className="input" type="number" min="0" placeholder="0" value={form.current_balance} onChange={e => set('current_balance', e.target.value)} />
+              <p className="text-xs text-surface-400 mt-1">Amount you currently owe</p>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>

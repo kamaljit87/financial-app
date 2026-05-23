@@ -20,6 +20,7 @@ const cardValidators = [
   body('color').optional({ nullable: true, checkFalsy: true }).matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Invalid color format'),
   body('card_type').optional({ nullable: true, checkFalsy: true }).isIn(['credit', 'debit', 'prepaid']).withMessage('Invalid card type'),
   body('shared_limit_group').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('Group name max 100 chars'),
+  body('current_balance').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Balance must be a positive number'),
 ];
 
 // GET all cards
@@ -85,13 +86,13 @@ router.get('/:id', (req, res) => {
 // CREATE card
 router.post('/', cardValidators, validate, (req, res) => {
   const db = getDb();
-  const { nickname, bank_name, last_four, credit_limit, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group } = req.body;
+  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group } = req.body;
   const id = uuidv4();
 
   db.prepare(`
-    INSERT INTO credit_cards (id, user_id, nickname, bank_name, last_four, credit_limit, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, req.user.id, nickname, bank_name, last_four, credit_limit, billing_date || null, due_date || null, interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit', shared_limit_group || null);
+    INSERT INTO credit_cards (id, user_id, nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, shared_limit_group)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, nickname, bank_name, last_four, credit_limit, current_balance ?? 0, billing_date || null, due_date || null, interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit', shared_limit_group || null);
 
   const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(id);
   res.status(201).json({ card });
@@ -104,16 +105,17 @@ router.put('/:id', cardValidators, validate, (req, res) => {
     .get(req.params.id, req.user.id);
   if (!card) return res.status(404).json({ error: 'Card not found' });
 
-  const { nickname, bank_name, last_four, credit_limit, billing_date, due_date, interest_rate, notes, color, card_type, is_active, shared_limit_group } = req.body;
+  const { nickname, bank_name, last_four, credit_limit, current_balance, billing_date, due_date, interest_rate, notes, color, card_type, is_active, shared_limit_group } = req.body;
 
   db.prepare(`
     UPDATE credit_cards SET
-      nickname = ?, bank_name = ?, last_four = ?, credit_limit = ?,
+      nickname = ?, bank_name = ?, last_four = ?, credit_limit = ?, current_balance = ?,
       billing_date = ?, due_date = ?, interest_rate = ?, notes = ?,
       color = ?, card_type = ?, is_active = ?, shared_limit_group = ?,
       updated_at = datetime('now')
     WHERE id = ? AND user_id = ?
-  `).run(nickname, bank_name, last_four, credit_limit, billing_date || null, due_date || null,
+  `).run(nickname, bank_name, last_four, credit_limit, current_balance ?? 0,
+    billing_date || null, due_date || null,
     interest_rate || null, notes || null, color || '#6366f1', card_type || 'credit',
     is_active !== undefined ? is_active : 1, shared_limit_group || null,
     req.params.id, req.user.id);
