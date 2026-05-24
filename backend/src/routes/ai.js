@@ -132,49 +132,38 @@ router.get('/recommendations', async (req, res) => {
     spendingByCard[row.card_id].push({ category: row.category, total: row.total, count: row.count });
   }
 
-  const cardSummaries = cards.map(c => ({
-    name: `${c.nickname} (${c.bank_name} ****${c.last_four})`,
-    credit_limit: c.credit_limit,
-    current_balance: c.current_balance,
-    interest_rate: c.interest_rate,
-    annual_fee_implied: null,
-    benefits: c.benefits || 'Not specified',
-    spending_last_3mo: spendingByCard[c.id] || [],
-  }));
+  const cardSummaries = cards.map(c => {
+    // Truncate benefits to 300 chars to keep prompt manageable with many cards
+    const benefits = c.benefits ? c.benefits.slice(0, 300) : 'Not specified';
+    const topSpend = (spendingByCard[c.id] || []).slice(0, 3);
+    return {
+      name: `${c.nickname} (${c.bank_name} ****${c.last_four})`,
+      credit_limit: c.credit_limit,
+      current_balance: c.current_balance,
+      interest_rate: c.interest_rate,
+      benefits,
+      spending: topSpend,
+    };
+  });
 
-  const prompt = `You are a personal finance advisor for India. Analyze the following credit cards and spending data, then provide clear recommendations.
+  const cardLines = cardSummaries.map((c, i) =>
+    `Card ${i + 1}: ${c.name} | Limit: ₹${Math.round(c.credit_limit).toLocaleString('en-IN')} | Balance: ₹${Math.round(c.current_balance).toLocaleString('en-IN')} | APR: ${c.interest_rate || '?'}% | Benefits: ${c.benefits} | Top spend: ${c.spending.length ? c.spending.map(s => `${s.category}:₹${Math.round(s.total)}`).join(', ') : 'none'}`
+  ).join('\n');
 
-Monthly income: ₹${income.total.toLocaleString('en-IN')}
+  const prompt = `You are a personal finance advisor for India. Analyze these ${cards.length} credit cards and return JSON only.
 
-Cards:
-${cardSummaries.map((c, i) => `
-Card ${i + 1}: ${c.name}
-  Credit limit: ₹${c.credit_limit.toLocaleString('en-IN')}
-  Current balance: ₹${c.current_balance.toLocaleString('en-IN')}
-  Interest rate: ${c.interest_rate ? c.interest_rate + '%' : 'Unknown'}
-  Known benefits: ${c.benefits}
-  Spending last 3 months by category: ${c.spending_last_3mo.length ? c.spending_last_3mo.map(s => `${s.category}: ₹${Math.round(s.total).toLocaleString('en-IN')}`).join(', ') : 'No transactions'}
-`).join('')}
+Monthly income: ₹${Math.round(income.total).toLocaleString('en-IN')}
 
-Provide your analysis in this exact JSON format (no markdown, no explanation outside JSON):
-{
-  "best_cards": [
-    { "card_name": "...", "reason": "..." }
-  ],
-  "worst_cards": [
-    { "card_name": "...", "reason": "..." }
-  ],
-  "best_use_per_card": [
-    { "card_name": "...", "best_for": "...", "tip": "..." }
-  ],
-  "overall_advice": "2-3 sentence summary of the user's card portfolio and key action items."
-}`;
+${cardLines}
+
+Reply with ONLY this JSON (no markdown fences, no explanation):
+{"best_cards":[{"card_name":"...","reason":"..."}],"worst_cards":[{"card_name":"...","reason":"..."}],"best_use_per_card":[{"card_name":"...","best_for":"...","tip":"..."}],"overall_advice":"2-3 sentences."}`;
 
   try {
     const client = getClient();
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -193,9 +182,13 @@ Provide your analysis in this exact JSON format (no markdown, no explanation out
       }
     }
 
-    if (!recommendations) return res.status(500).json({ error: 'Failed to parse AI response' });
+    if (!recommendations) {
+      console.error('[AI] Failed to parse recommendations response:', raw.slice(0, 300));
+      return res.status(500).json({ error: 'Failed to parse AI response' });
+    }
     res.json({ recommendations });
   } catch (err) {
+    console.error('[AI] Recommendations error:', err.message, err.status || '');
     if (err.message === 'ANTHROPIC_API_KEY not configured') {
       return res.status(503).json({ error: 'AI features not configured. Add ANTHROPIC_API_KEY to your .env file.' });
     }
