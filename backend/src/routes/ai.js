@@ -146,15 +146,19 @@ function buildPortfolioContext(db, userId) {
 
   const cardLines = cards.map((c, i) => {
     const stats = statsByCard[c.id] || { total_spent: 0, total_paid: 0, txn_count: 0, last_txn: null };
-    const util = c.credit_limit > 0 ? ((c.current_balance / c.credit_limit) * 100).toFixed(1) : 0;
-    const cats = (spendingByCard[c.id] || []).map(s => `${s.category} ₹${Math.round(s.total).toLocaleString('en-IN')} (${s.txn_count} txns)`).join(', ') || 'No transactions';
-    const lastUsed = stats.last_txn ? `last used ${stats.last_txn}` : 'never used';
-    return `Card ${i + 1}: ${c.nickname} | Bank: ${c.bank_name} | ****${c.last_four}
-  Limit: ₹${Math.round(c.credit_limit).toLocaleString('en-IN')} | Balance: ₹${Math.round(c.current_balance).toLocaleString('en-IN')} | Utilization: ${util}%
-  APR: ${c.interest_rate ? c.interest_rate + '%' : 'unknown'} | ${lastUsed}
-  6-month spend: ₹${Math.round(stats.total_spent).toLocaleString('en-IN')} (${stats.txn_count} txns) | Paid: ₹${Math.round(stats.total_paid).toLocaleString('en-IN')}
-  Spend by category: ${cats}
-  Benefits on file: ${c.benefits || 'Not provided — fetch benefits first for better analysis'}`;
+    const util = c.credit_limit > 0 ? ((c.current_balance / c.credit_limit) * 100).toFixed(0) : 0;
+    // Top 4 categories only, compact format
+    const cats = (spendingByCard[c.id] || []).slice(0, 4).map(s => `${s.category}:₹${Math.round(s.total / 1000)}k`).join(' ') || 'none';
+    const lastUsed = stats.last_txn ? stats.last_txn : 'never';
+    // Compress benefits: strip leading dashes/bullets, join into one line, max 300 chars
+    const benefits = c.benefits
+      ? c.benefits.replace(/^[-•*]\s*/gm, '').replace(/\n+/g, ' | ').trim().slice(0, 300)
+      : 'not provided';
+    return `[${i + 1}] ${c.nickname} (${c.bank_name})
+  Limit:₹${Math.round(c.credit_limit / 1000)}k Bal:₹${Math.round(c.current_balance / 1000)}k Util:${util}% APR:${c.interest_rate || '?'}% LastUsed:${lastUsed}
+  Spent6mo:₹${Math.round(stats.total_spent / 1000)}k(${stats.txn_count}txns) Paid:₹${Math.round(stats.total_paid / 1000)}k
+  Spend:${cats}
+  Benefits:${benefits}`;
   }).join('\n\n');
 
   return {
@@ -353,12 +357,13 @@ router.get('/recommendations', async (req, res) => {
   if (!ctx.cards.length) return res.json({ recommendations: null, message: 'No active cards to analyze.' });
 
   const prompt = MODE_PROMPTS[mode](ctx);
+  console.log(`[AI] mode=${mode} cards=${ctx.cards.length} prompt_chars=${prompt.length}`);
 
   try {
     const client = getClient();
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 6000,
       messages: [{ role: 'user', content: prompt }],
     });
 
