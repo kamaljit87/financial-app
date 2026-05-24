@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, Edit2, Trash2, X, Eye, EyeOff, Banknote } from 'lucide-react';
+import { Plus, CreditCard, Edit2, Trash2, X, Eye, EyeOff, Banknote, Sparkles, RefreshCw, Link } from 'lucide-react';
 import api, { formatCurrency } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -259,6 +259,9 @@ export default function Cards() {
   const [editCard, setEditCard] = useState(null);
   const [maskedCards, setMaskedCards] = useState(new Set());
   const [payCard, setPayCard] = useState(null);
+  const [benefitsPanel, setBenefitsPanel] = useState({});
+  const [benefitUrls, setBenefitUrls] = useState({});
+  const [benefitsLoading, setBenefitsLoading] = useState({});
   const { settings } = useAuth();
   const sym = settings?.currency_symbol || '₹';
 
@@ -283,6 +286,20 @@ export default function Cards() {
       fetchCards();
     } catch {
       toast.error('Failed to delete card');
+    }
+  };
+
+  const fetchBenefits = async (card) => {
+    setBenefitsLoading(p => ({ ...p, [card.id]: true }));
+    try {
+      const url = benefitUrls[card.id]?.trim() || undefined;
+      const { data } = await api.post(`/ai/card-benefits/${card.id}`, url ? { url } : {});
+      setCards(prev => prev.map(c => c.id === card.id ? { ...c, benefits: data.benefits } : c));
+      toast.success('Benefits fetched');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to fetch benefits');
+    } finally {
+      setBenefitsLoading(p => ({ ...p, [card.id]: false }));
     }
   };
 
@@ -400,10 +417,46 @@ export default function Cards() {
 
                   {!card.is_active && <div className="badge-yellow text-xs">Inactive</div>}
 
+                  {/* Benefits panel */}
+                  {benefitsPanel[card.id] && (
+                    <div className="border border-surface-200 rounded-xl p-3 space-y-2 bg-surface-50">
+                      <div className="flex gap-2">
+                        <input
+                          className="input text-xs flex-1 py-1.5"
+                          type="url"
+                          placeholder="Paste card benefits URL (optional)"
+                          value={benefitUrls[card.id] || ''}
+                          onChange={e => setBenefitUrls(p => ({ ...p, [card.id]: e.target.value }))}
+                        />
+                        <button
+                          onClick={() => fetchBenefits(card)}
+                          disabled={benefitsLoading[card.id]}
+                          className="btn-primary flex items-center gap-1 text-xs py-1.5 px-3 flex-shrink-0">
+                          {benefitsLoading[card.id]
+                            ? <RefreshCw className="w-3 h-3 animate-spin" />
+                            : <Sparkles className="w-3 h-3" />}
+                          {benefitsLoading[card.id] ? 'Fetching...' : 'Fetch'}
+                        </button>
+                      </div>
+                      {card.benefits && (
+                        <div className="text-xs text-surface-600 whitespace-pre-line font-mono leading-relaxed max-h-32 overflow-y-auto">
+                          {card.benefits}
+                        </div>
+                      )}
+                      {!card.benefits && !benefitsLoading[card.id] && (
+                        <p className="text-xs text-surface-400 italic">Paste a URL or click Fetch to use AI knowledge.</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-1">
                     <button onClick={() => setPayCard(card)}
                       className="btn-primary flex-1 flex items-center justify-center gap-1 text-xs py-1.5">
                       <Banknote className="w-3.5 h-3.5" /> Pay
+                    </button>
+                    <button onClick={() => setBenefitsPanel(p => ({ ...p, [card.id]: !p[card.id] }))}
+                      className="btn-secondary flex-1 flex items-center justify-center gap-1 text-xs py-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Benefits
                     </button>
                     <button onClick={() => { setEditCard(card); setShowModal(true); }}
                       className="btn-secondary flex-1 flex items-center justify-center gap-1 text-xs py-1.5">
