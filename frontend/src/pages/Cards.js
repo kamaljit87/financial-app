@@ -135,13 +135,22 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Shared Limit Group <span className="text-surface-400 font-normal">(optional)</span></label>
-              <input className="input" placeholder={`e.g. ${form.bank_name || 'HDFC'} Pool`}
-                list="group-suggestions"
-                value={form.shared_limit_group}
-                onChange={e => set('shared_limit_group', e.target.value)} />
-              <datalist id="group-suggestions">
-                {existingGroups.map(g => <option key={g} value={g} />)}
-              </datalist>
+              {existingGroups.length > 0 ? (
+                <select className="input" value={existingGroups.includes(form.shared_limit_group) ? form.shared_limit_group : form.shared_limit_group ? '__new__' : ''}
+                  onChange={e => {
+                    if (e.target.value === '__new__') set('shared_limit_group', '');
+                    else set('shared_limit_group', e.target.value);
+                  }}>
+                  <option value="">— No group —</option>
+                  {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                  <option value="__new__">+ Create new group…</option>
+                </select>
+              ) : null}
+              {(existingGroups.length === 0 || (!existingGroups.includes(form.shared_limit_group))) && (
+                <input className="input mt-1" placeholder={`e.g. ${form.bank_name || 'HDFC'} Pool`}
+                  value={form.shared_limit_group}
+                  onChange={e => set('shared_limit_group', e.target.value)} />
+              )}
               <p className="text-xs text-surface-400 mt-1">Cards in the same group share a combined limit.</p>
             </div>
             <div>
