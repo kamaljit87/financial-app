@@ -120,19 +120,36 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Total Debt Hero */}
+      <div className="card bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-red-500 font-medium mb-1">Total Outstanding Debt</p>
+            <p className="text-4xl font-bold text-red-700 tracking-tight">{formatCurrency(summary.total_debt, sym)}</p>
+            <div className="flex items-center gap-3 mt-2 text-xs text-red-400">
+              <span>{summary.overall_utilization}% of {formatCurrency(summary.total_credit_limit, sym)} limit used</span>
+              <span>·</span>
+              <span>{summary.active_cards} active card{summary.active_cards !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="mt-3 h-2 bg-red-100 rounded-full overflow-hidden w-64 max-w-full">
+              <div className="h-2 rounded-full bg-red-500 transition-all"
+                style={{ width: `${Math.min(100, parseFloat(summary.overall_utilization))}%` }} />
+            </div>
+          </div>
+          {insights?.health_score && <HealthScoreBadge score={insights.health_score.score} />}
+        </div>
+      </div>
+
       {/* Header row */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-surface-900">{new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</h3>
           <p className="text-sm text-surface-400">Financial overview</p>
         </div>
-        {insights?.health_score && <HealthScoreBadge score={insights.health_score.score} />}
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Debt" value={summary.total_debt} icon={CreditCard} color="red" symbol={sym}
-          subtext={`${summary.overall_utilization}% utilized`} />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Monthly Income" value={summary.monthly_income} icon={TrendingUp} color="green" symbol={sym}
           trend={summary.income_trend} subtext="This month" />
         <StatCard label="Monthly Expenses" value={summary.monthly_expenses} icon={TrendingDown} color="red" symbol={sym}
