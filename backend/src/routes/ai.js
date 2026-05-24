@@ -12,29 +12,79 @@ function getClient() {
   return new Anthropic({ apiKey: key });
 }
 
+async function fetchUrlText(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DebtWise/1.0)' },
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
+  if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status}`);
+  const html = await res.text();
+  // Strip tags and collapse whitespace — keep it under ~6000 chars to fit context
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 6000);
+  return text;
+}
+
 // POST /api/ai/card-benefits/:id — fetch and save AI-generated benefits for one card
+// Body: { url?: string }  — optional URL to read benefits from
 router.post('/card-benefits/:id', async (req, res) => {
   const db = getDb();
   const card = db.prepare('SELECT * FROM credit_cards WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!card) return res.status(404).json({ error: 'Card not found' });
 
+  const { url } = req.body;
+
+  // Validate URL if provided
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL. Must start with http:// or https://' });
+    }
+  }
+
   try {
     const client = getClient();
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      messages: [{
-        role: 'user',
-        content: `You are a credit card expert for India. Based on the card details below, list the key benefits of this card in a concise, factual format. Focus on: rewards/cashback rates, welcome bonus, annual fee, lounge access, fuel surcharge waiver, and any notable perks. If you are not confident about this specific card variant, say so and give general information about the bank's card range.
+
+    let pageContent = '';
+    if (url) {
+      try {
+        pageContent = await fetchUrlText(url);
+      } catch (fetchErr) {
+        return res.status(422).json({ error: `Could not fetch URL: ${fetchErr.message}` });
+      }
+    }
+
+    const prompt = url
+      ? `You are a credit card expert for India. The following is the text content of a card benefits page. Extract the key benefits and fees for this card in a concise list.
+
+Card: ${card.nickname} (${card.bank_name})
+Page content:
+${pageContent}
+
+Respond ONLY with a plain text list, 1 benefit/fee per line, starting with a dash. Focus on: rewards/cashback rates, annual fee, joining fee, welcome bonus, lounge access, fuel surcharge waiver, and notable perks. Maximum 12 lines. No headers, no preamble.`
+      : `You are a credit card expert for India. Based on the card details below, list the key benefits of this card in a concise, factual format. Focus on: rewards/cashback rates, welcome bonus, annual fee, lounge access, fuel surcharge waiver, and any notable perks. If you are not confident about this specific card variant, say so and give general information about the bank's card range.
 
 Card nickname: ${card.nickname}
 Bank: ${card.bank_name}
 Card type: ${card.card_type}
 Credit limit: ₹${card.credit_limit}
 
-Respond ONLY with a plain text list of benefits, 1 per line, starting with a dash. No headers, no preamble. Maximum 10 lines.`,
-      }],
+Respond ONLY with a plain text list of benefits, 1 per line, starting with a dash. No headers, no preamble. Maximum 10 lines.`;
+
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const benefits = message.content[0].text.trim();

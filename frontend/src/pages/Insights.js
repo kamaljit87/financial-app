@@ -16,6 +16,8 @@ function CardRecommendations({ sym }) {
   const [benefitsLoading, setBenefitsLoading] = useState({});
   const [editingBenefits, setEditingBenefits] = useState({});
   const [benefitDrafts, setBenefitDrafts] = useState({});
+  const [urlInputs, setUrlInputs] = useState({});
+  const [showUrlInput, setShowUrlInput] = useState({});
 
   useEffect(() => {
     api.get('/cards').then(r => setCards(r.data.cards)).catch(() => toast.error('Failed to load cards'));
@@ -24,8 +26,10 @@ function CardRecommendations({ sym }) {
   const fetchBenefits = async (card) => {
     setBenefitsLoading(p => ({ ...p, [card.id]: true }));
     try {
-      const { data } = await api.post(`/ai/card-benefits/${card.id}`);
+      const url = urlInputs[card.id]?.trim() || undefined;
+      const { data } = await api.post(`/ai/card-benefits/${card.id}`, url ? { url } : {});
       setCards(prev => prev.map(c => c.id === card.id ? { ...c, benefits: data.benefits } : c));
+      setShowUrlInput(p => ({ ...p, [card.id]: false }));
       toast.success(`Benefits fetched for ${card.nickname}`);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to fetch benefits');
@@ -81,12 +85,18 @@ function CardRecommendations({ sym }) {
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <button
+                      onClick={() => setShowUrlInput(p => ({ ...p, [card.id]: !p[card.id] }))}
+                      className="btn-secondary text-xs py-1.5 px-3"
+                      title="Paste a URL to fetch benefits from">
+                      🔗 URL
+                    </button>
+                    <button
                       onClick={() => fetchBenefits(card)}
                       disabled={benefitsLoading[card.id]}
                       className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3">
                       {benefitsLoading[card.id]
                         ? <><RefreshCw className="w-3 h-3 animate-spin" /> Fetching...</>
-                        : <><Sparkles className="w-3 h-3 text-violet-500" /> {card.benefits ? 'Re-fetch' : 'Fetch Benefits'}</>}
+                        : <><Sparkles className="w-3 h-3 text-violet-500" /> {card.benefits ? 'Re-fetch' : 'Fetch'}</>}
                     </button>
                     {!editingBenefits[card.id] && (
                       <button
@@ -97,6 +107,19 @@ function CardRecommendations({ sym }) {
                     )}
                   </div>
                 </div>
+
+                {showUrlInput[card.id] && (
+                  <div className="mb-3 flex gap-2 items-center">
+                    <input
+                      className="input text-xs flex-1"
+                      type="url"
+                      placeholder="https://www.hdfcbank.com/card-benefits-page"
+                      value={urlInputs[card.id] || ''}
+                      onChange={e => setUrlInputs(p => ({ ...p, [card.id]: e.target.value }))}
+                    />
+                    <p className="text-xs text-surface-400 flex-shrink-0">AI reads this page</p>
+                  </div>
+                )}
 
                 {editingBenefits[card.id] ? (
                   <div className="space-y-2">
