@@ -295,7 +295,8 @@ export default function Cards() {
       const url = benefitUrls[card.id]?.trim() || undefined;
       const { data } = await api.post(`/ai/card-benefits/${card.id}`, url ? { url } : {});
       setCards(prev => prev.map(c => c.id === card.id ? { ...c, benefits: data.benefits } : c));
-      toast.success('Benefits fetched');
+      if (data.url_blocked) toast('URL blocked by bank site — used AI knowledge instead', { icon: '⚠️' });
+      else toast.success('Benefits fetched');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to fetch benefits');
     } finally {

@@ -30,7 +30,8 @@ function CardRecommendations({ sym }) {
       const { data } = await api.post(`/ai/card-benefits/${card.id}`, url ? { url } : {});
       setCards(prev => prev.map(c => c.id === card.id ? { ...c, benefits: data.benefits } : c));
       setShowUrlInput(p => ({ ...p, [card.id]: false }));
-      toast.success(`Benefits fetched for ${card.nickname}`);
+      if (data.url_blocked) toast(`URL blocked by bank site — used AI knowledge instead`, { icon: '⚠️' });
+      else toast.success(`Benefits fetched for ${card.nickname}`);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to fetch benefits');
     } finally {
@@ -223,7 +224,7 @@ function CardRecommendations({ sym }) {
                     <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <p className="font-semibold text-surface-800 text-sm">{c.card_name}</p>
                       <p className="text-xs text-amber-700 font-medium mt-0.5">Best for: {c.best_for}</p>
-                      <p className="text-xs text-surface-500 mt-1">{c.tip}</p>
+                      <p className="text-xs text-surface-500 mt-1">{c.tip || c.use}</p>
                     </div>
                   ))}
                 </div>

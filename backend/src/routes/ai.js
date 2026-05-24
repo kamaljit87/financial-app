@@ -56,15 +56,17 @@ router.post('/card-benefits/:id', async (req, res) => {
     const client = getClient();
 
     let pageContent = '';
+    let urlFailed = false;
     if (url) {
       try {
         pageContent = await fetchUrlText(url);
       } catch (fetchErr) {
-        return res.status(422).json({ error: `Could not fetch URL: ${fetchErr.message}` });
+        // Bank websites often block scrapers — fall back to AI knowledge and warn
+        urlFailed = true;
       }
     }
 
-    const prompt = url
+    const prompt = (url && !urlFailed)
       ? `You are a credit card expert for India. The following is the text content of a card benefits page. Extract the key benefits and fees for this card in a concise list.
 
 Card: ${card.nickname} (${card.bank_name})
@@ -91,7 +93,7 @@ Respond ONLY with a plain text list of benefits, 1 per line, starting with a das
     db.prepare(`UPDATE credit_cards SET benefits = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(benefits, card.id);
 
-    res.json({ benefits });
+    res.json({ benefits, url_blocked: urlFailed });
   } catch (err) {
     if (err.message === 'ANTHROPIC_API_KEY not configured') {
       return res.status(503).json({ error: 'AI features not configured. Add ANTHROPIC_API_KEY to your .env file.' });
@@ -181,9 +183,14 @@ Provide your analysis in this exact JSON format (no markdown, no explanation out
     try {
       recommendations = JSON.parse(raw);
     } catch {
-      // Try to extract JSON if model added surrounding text
-      const match = raw.match(/\{[\s\S]*\}/);
-      recommendations = match ? JSON.parse(match[0]) : null;
+      // Strip markdown code fences and retry
+      const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+      try {
+        recommendations = JSON.parse(stripped);
+      } catch {
+        const match = stripped.match(/\{[\s\S]*\}/);
+        recommendations = match ? JSON.parse(match[0]) : null;
+      }
     }
 
     if (!recommendations) return res.status(500).json({ error: 'Failed to parse AI response' });
