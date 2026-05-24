@@ -190,6 +190,10 @@ function runMigrations() {
     logger.info('Migration: added shared_limit_pool to credit_cards');
   }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_cards_group ON credit_cards(user_id, shared_limit_group)`);
+  if (!cols.includes('benefits')) {
+    db.exec(`ALTER TABLE credit_cards ADD COLUMN benefits TEXT`);
+    logger.info('Migration: added benefits to credit_cards');
+  }
 }
 
 module.exports = { initDatabase, getDb };
