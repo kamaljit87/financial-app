@@ -11,6 +11,12 @@ const EMPTY_FORM = { nickname: '', bank_name: '', last_four: '', credit_limit: '
 function CardModal({ card, onClose, onSave, existingCards = [] }) {
   const [form, setForm] = useState(card ? { ...card, is_active: card.is_active === 1, shared_limit_group: card.shared_limit_group || '', shared_limit_pool: card.shared_limit_pool ?? '', current_balance: card.current_balance ?? '' } : EMPTY_FORM);
   const existingGroups = [...new Set(existingCards.filter(c => c.shared_limit_group && c.id !== card?.id).map(c => c.shared_limit_group))];
+  const poolLimitByGroup = Object.fromEntries(
+    existingGroups.map(g => {
+      const match = existingCards.find(c => c.shared_limit_group === g && c.shared_limit_pool);
+      return [g, match?.shared_limit_pool ?? ''];
+    })
+  );
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -138,8 +144,16 @@ function CardModal({ card, onClose, onSave, existingCards = [] }) {
               {existingGroups.length > 0 ? (
                 <select className="input" value={existingGroups.includes(form.shared_limit_group) ? form.shared_limit_group : form.shared_limit_group ? '__new__' : ''}
                   onChange={e => {
-                    if (e.target.value === '__new__') set('shared_limit_group', '');
-                    else set('shared_limit_group', e.target.value);
+                    if (e.target.value === '__new__') {
+                      set('shared_limit_group', '');
+                      set('shared_limit_pool', '');
+                    } else if (e.target.value === '') {
+                      set('shared_limit_group', '');
+                      set('shared_limit_pool', '');
+                    } else {
+                      set('shared_limit_group', e.target.value);
+                      set('shared_limit_pool', poolLimitByGroup[e.target.value] ?? '');
+                    }
                   }}>
                   <option value="">— No group —</option>
                   {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
