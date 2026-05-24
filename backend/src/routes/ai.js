@@ -110,60 +110,114 @@ router.get('/recommendations', async (req, res) => {
   const cards = db.prepare(`SELECT * FROM credit_cards WHERE user_id = ? AND is_active = 1`).all(userId);
   if (!cards.length) return res.json({ recommendations: null, message: 'No active cards to analyze.' });
 
-  // Spending by category per card over last 3 months
+  // Spending by category per card over last 6 months
   const spending = db.prepare(`
-    SELECT card_id, category, SUM(amount) as total, COUNT(*) as count
+    SELECT card_id, category, SUM(amount) as total, COUNT(*) as txn_count
     FROM transactions
     WHERE user_id = ? AND transaction_type IN ('purchase','emi','fee')
-      AND date >= date('now', '-3 months')
+      AND date >= date('now', '-6 months')
     GROUP BY card_id, category
     ORDER BY card_id, total DESC
   `).all(userId);
 
-  // Monthly income for context
+  // Total spend and payments per card last 6 months
+  const cardStats = db.prepare(`
+    SELECT
+      card_id,
+      SUM(CASE WHEN transaction_type IN ('purchase','emi','fee') THEN amount ELSE 0 END) as total_spent,
+      SUM(CASE WHEN transaction_type IN ('payment','cashback','refund') THEN amount ELSE 0 END) as total_paid,
+      COUNT(CASE WHEN transaction_type IN ('purchase','emi','fee') THEN 1 END) as txn_count
+    FROM transactions
+    WHERE user_id = ? AND date >= date('now', '-6 months')
+    GROUP BY card_id
+  `).all(userId);
+
+  // Monthly income (last 3 months average for stability)
   const income = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM income_entries
-    WHERE user_id = ? AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+    SELECT COALESCE(AVG(monthly), 0) as avg_monthly FROM (
+      SELECT strftime('%Y-%m', date) as month, SUM(amount) as monthly
+      FROM income_entries WHERE user_id = ? AND date >= date('now', '-3 months')
+      GROUP BY month
+    )
+  `).get(userId);
+
+  // Total debt context
+  const debtSummary = db.prepare(`
+    SELECT SUM(current_balance) as total_debt, SUM(credit_limit) as total_limit
+    FROM credit_cards WHERE user_id = ? AND is_active = 1
   `).get(userId);
 
   const spendingByCard = {};
   for (const row of spending) {
     if (!spendingByCard[row.card_id]) spendingByCard[row.card_id] = [];
-    spendingByCard[row.card_id].push({ category: row.category, total: row.total, count: row.count });
+    spendingByCard[row.card_id].push(row);
   }
 
+  const statsByCard = {};
+  for (const row of cardStats) statsByCard[row.card_id] = row;
+
   const cardSummaries = cards.map(c => {
-    // Truncate benefits to 300 chars to keep prompt manageable with many cards
-    const benefits = c.benefits ? c.benefits.slice(0, 300) : 'Not specified';
-    const topSpend = (spendingByCard[c.id] || []).slice(0, 3);
+    const stats = statsByCard[c.id] || { total_spent: 0, total_paid: 0, txn_count: 0 };
+    const utilization = c.credit_limit > 0 ? ((c.current_balance / c.credit_limit) * 100).toFixed(1) : 0;
+    const topCategories = (spendingByCard[c.id] || []).slice(0, 5);
     return {
       name: `${c.nickname} (${c.bank_name} ****${c.last_four})`,
       credit_limit: c.credit_limit,
       current_balance: c.current_balance,
+      utilization_pct: utilization,
       interest_rate: c.interest_rate,
-      benefits,
-      spending: topSpend,
+      benefits: c.benefits || 'Not provided',
+      total_spent_6mo: stats.total_spent,
+      total_paid_6mo: stats.total_paid,
+      txn_count_6mo: stats.txn_count,
+      top_categories: topCategories,
     };
   });
 
-  const cardLines = cardSummaries.map((c, i) =>
-    `Card ${i + 1}: ${c.name} | Limit: ₹${Math.round(c.credit_limit).toLocaleString('en-IN')} | Balance: ₹${Math.round(c.current_balance).toLocaleString('en-IN')} | APR: ${c.interest_rate || '?'}% | Benefits: ${c.benefits} | Top spend: ${c.spending.length ? c.spending.map(s => `${s.category}:₹${Math.round(s.total)}`).join(', ') : 'none'}`
-  ).join('\n');
+  const cardLines = cardSummaries.map((c, i) => `
+Card ${i + 1}: ${c.name}
+  Credit limit: ₹${Math.round(c.credit_limit).toLocaleString('en-IN')} | Balance: ₹${Math.round(c.current_balance).toLocaleString('en-IN')} | Utilization: ${c.utilization_pct}%
+  Interest rate: ${c.interest_rate ? c.interest_rate + '% p.a.' : 'Not specified'}
+  Total spent (6mo): ₹${Math.round(c.total_spent_6mo).toLocaleString('en-IN')} across ${c.txn_count_6mo} transactions
+  Total paid (6mo): ₹${Math.round(c.total_paid_6mo).toLocaleString('en-IN')}
+  Spending by category: ${c.top_categories.length ? c.top_categories.map(s => `${s.category} ₹${Math.round(s.total).toLocaleString('en-IN')} (${s.txn_count} txns)`).join(', ') : 'No transactions recorded'}
+  Card benefits: ${c.benefits}`).join('\n');
 
-  const prompt = `You are a personal finance advisor for India. Analyze these ${cards.length} credit cards and return JSON only.
+  const prompt = `You are an expert personal finance advisor specializing in Indian credit cards. Analyze the user's complete credit card portfolio and provide detailed, actionable recommendations.
 
-Monthly income: ₹${Math.round(income.total).toLocaleString('en-IN')}
+USER FINANCIAL PROFILE:
+- Average monthly income: ₹${Math.round(income.avg_monthly).toLocaleString('en-IN')}
+- Total credit card debt: ₹${Math.round(debtSummary.total_debt || 0).toLocaleString('en-IN')}
+- Total credit limit: ₹${Math.round(debtSummary.total_limit || 0).toLocaleString('en-IN')}
+- Overall utilization: ${debtSummary.total_limit > 0 ? ((debtSummary.total_debt / debtSummary.total_limit) * 100).toFixed(1) : 0}%
+- Number of active cards: ${cards.length}
 
+CREDIT CARDS (last 6 months of data):
 ${cardLines}
 
-Reply with ONLY this JSON (no markdown fences, no explanation):
-{"best_cards":[{"card_name":"...","reason":"..."}],"worst_cards":[{"card_name":"...","reason":"..."}],"best_use_per_card":[{"card_name":"...","best_for":"...","tip":"..."}],"overall_advice":"2-3 sentences."}`;
+Provide a thorough analysis. Consider:
+- Which cards give best value based on actual spending patterns vs benefits
+- High-interest cards with significant balances (debt cost)
+- Cards with low/no activity that may have annual fees (dead weight)
+- Which card is best for each spending category based on rewards
+- Credit utilization per card and rebalancing opportunities
+- Whether the number of cards is too many/few for this income level
+
+Reply with ONLY valid JSON (no markdown, no text outside JSON):
+{
+  "best_cards": [{"card_name": "...", "reason": "...", "score": 1-10}],
+  "worst_cards": [{"card_name": "...", "reason": "...", "action": "close|reduce-usage|pay-down"}],
+  "best_use_per_card": [{"card_name": "...", "best_for": "...", "tip": "..."}],
+  "immediate_actions": ["action 1", "action 2", "action 3"],
+  "debt_strategy": "Specific advice on paying down debt across these cards (avalanche/snowball recommendation with card names)",
+  "overall_advice": "3-4 sentence portfolio summary with key insight."
+}`;
 
   try {
     const client = getClient();
     const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     });
 

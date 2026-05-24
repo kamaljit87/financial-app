@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, TrendingDown, TrendingUp, Clock, Sparkles, RefreshCw, ThumbsUp, ThumbsDown, Star } from 'lucide-react';
+import { AlertTriangle, CheckCircle, TrendingDown, TrendingUp, Clock, Sparkles, RefreshCw, ThumbsUp, ThumbsDown, Star, Zap, Target, Shield } from 'lucide-react';
 import { RadialBarChart, RadialBar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import api, { formatCurrency } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -171,11 +171,38 @@ function CardRecommendations({ sym }) {
 
         {recommendations && (
           <div className="space-y-5">
-            {/* Overall advice */}
+            {/* Summary */}
             <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-violet-800">
-              <p className="font-semibold mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Summary</p>
-              <p>{recommendations.overall_advice}</p>
+              <p className="font-semibold mb-1.5 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Portfolio Summary</p>
+              <p className="leading-relaxed">{recommendations.overall_advice}</p>
             </div>
+
+            {/* Immediate actions */}
+            {recommendations.immediate_actions?.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-orange-700 flex items-center gap-1.5 mb-3">
+                  <Zap className="w-4 h-4" /> Immediate Actions
+                </h4>
+                <ol className="space-y-1.5">
+                  {recommendations.immediate_actions.map((action, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-orange-800">
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-orange-200 text-orange-700 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                      <span>{action}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* Debt strategy */}
+            {recommendations.debt_strategy && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-blue-700 flex items-center gap-1.5 mb-1.5">
+                  <Target className="w-4 h-4" /> Debt Paydown Strategy
+                </h4>
+                <p className="text-xs text-blue-800 leading-relaxed">{recommendations.debt_strategy}</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Best cards */}
@@ -187,8 +214,13 @@ function CardRecommendations({ sym }) {
                   <div className="space-y-2">
                     {recommendations.best_cards.map((c, i) => (
                       <div key={i} className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                        <p className="font-semibold text-emerald-800 text-sm">{c.card_name}</p>
-                        <p className="text-xs text-emerald-700 mt-0.5">{c.reason}</p>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className="font-semibold text-emerald-800 text-sm">{c.card_name}</p>
+                          {c.score && (
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">{c.score}/10</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-emerald-700 leading-relaxed">{c.reason}</p>
                       </div>
                     ))}
                   </div>
@@ -202,12 +234,19 @@ function CardRecommendations({ sym }) {
                     <ThumbsDown className="w-4 h-4" /> Cards to Reconsider
                   </h4>
                   <div className="space-y-2">
-                    {recommendations.worst_cards.map((c, i) => (
-                      <div key={i} className="bg-red-50 border border-red-200 rounded-xl p-3">
-                        <p className="font-semibold text-red-700 text-sm">{c.card_name}</p>
-                        <p className="text-xs text-red-600 mt-0.5">{c.reason}</p>
-                      </div>
-                    ))}
+                    {recommendations.worst_cards.map((c, i) => {
+                      const actionColor = { close: 'bg-red-100 text-red-700', 'reduce-usage': 'bg-amber-100 text-amber-700', 'pay-down': 'bg-orange-100 text-orange-700' }[c.action] || 'bg-red-100 text-red-700';
+                      const actionLabel = { close: 'Consider closing', 'reduce-usage': 'Reduce usage', 'pay-down': 'Pay down first' }[c.action];
+                      return (
+                        <div key={i} className="bg-red-50 border border-red-200 rounded-xl p-3">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className="font-semibold text-red-700 text-sm">{c.card_name}</p>
+                            {actionLabel && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${actionColor}`}>{actionLabel}</span>}
+                          </div>
+                          <p className="text-xs text-red-600 leading-relaxed">{c.reason}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -224,7 +263,7 @@ function CardRecommendations({ sym }) {
                     <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <p className="font-semibold text-surface-800 text-sm">{c.card_name}</p>
                       <p className="text-xs text-amber-700 font-medium mt-0.5">Best for: {c.best_for}</p>
-                      <p className="text-xs text-surface-500 mt-1">{c.tip || c.use}</p>
+                      <p className="text-xs text-surface-500 mt-1 leading-relaxed">{c.tip || c.use}</p>
                     </div>
                   ))}
                 </div>
@@ -232,7 +271,7 @@ function CardRecommendations({ sym }) {
             )}
 
             <p className="text-xs text-surface-400 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> AI analysis based on your entered benefits and last 3 months of spending. Re-run anytime.
+              <Sparkles className="w-3 h-3" /> Analysis based on 6 months of spending data. Re-run anytime after updating benefits.
             </p>
           </div>
         )}
