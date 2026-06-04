@@ -20,6 +20,7 @@ const insightsRoutes = require('./routes/insights');
 const exportRoutes = require('./routes/export');
 const backupRoutes = require('./routes/backup');
 const aiRoutes = require('./routes/ai');
+const remindersRoutes = require('./routes/reminders');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -104,6 +105,7 @@ app.use('/api/insights', insightsRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/reminders', remindersRoutes);
 
 // 404 handler
 app.use((req, res) => {

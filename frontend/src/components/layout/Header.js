@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import ReminderBell from '../ui/ReminderBell';
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
@@ -33,6 +34,7 @@ export default function Header({ onMenuClick }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <ReminderBell />
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-slow" />
           <span className="text-xs text-emerald-700 font-medium">Local</span>
