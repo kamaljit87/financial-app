@@ -150,9 +150,11 @@ function buildPortfolioContext(db, userId) {
     // Top 4 categories only, compact format
     const cats = (spendingByCard[c.id] || []).slice(0, 4).map(s => `${s.category}:₹${Math.round(s.total / 1000)}k`).join(' ') || 'none';
     const lastUsed = stats.last_txn ? stats.last_txn : 'never';
-    // Compress benefits: strip leading dashes/bullets, join into one line, max 300 chars
+    // Compress benefits: strip leading dashes/bullets, join into one line
+    // Tighter limit for large portfolios to keep prompt size manageable
+    const benefitsCap = cards.length > 12 ? 120 : cards.length > 8 ? 200 : 300;
     const benefits = c.benefits
-      ? c.benefits.replace(/^[-•*]\s*/gm, '').replace(/\n+/g, ' | ').trim().slice(0, 300)
+      ? c.benefits.replace(/^[-•*]\s*/gm, '').replace(/\n+/g, ' | ').trim().slice(0, benefitsCap)
       : 'not provided';
     return `[${i + 1}] ${c.nickname} (${c.bank_name})
   Limit:₹${Math.round(c.credit_limit / 1000)}k Bal:₹${Math.round(c.current_balance / 1000)}k Util:${util}% APR:${c.interest_rate || '?'}% LastUsed:${lastUsed}
@@ -357,15 +359,28 @@ router.get('/recommendations', async (req, res) => {
   if (!ctx.cards.length) return res.json({ recommendations: null, message: 'No active cards to analyze.' });
 
   const prompt = MODE_PROMPTS[mode](ctx);
-  console.log(`[AI] mode=${mode} cards=${ctx.cards.length} prompt_chars=${prompt.length}`);
+
+  // Per-mode token limits — generous enough for full output but not unbounded
+  const MAX_TOKENS = {
+    keep_vs_close:          ctx.cards.length > 12 ? 2500 : 2000,
+    card_health_check:      ctx.cards.length > 12 ? 4000 : 3000,
+    best_card_per_category: 2000,
+    portfolio_optimization: 2500,
+    reward_maximization:    2500,
+    minimalist_wallet:      1500,
+  };
+  const maxTokens = MAX_TOKENS[mode] || 2500;
+
+  console.log(`[AI] mode=${mode} cards=${ctx.cards.length} prompt_chars=${prompt.length} max_tokens=${maxTokens}`);
 
   try {
     const client = getClient();
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 6000,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
     });
+    console.log(`[AI] stop_reason=${message.stop_reason} output_tokens=${message.usage?.output_tokens}`);
 
     const raw = message.content[0].text.trim();
     let recommendations;
